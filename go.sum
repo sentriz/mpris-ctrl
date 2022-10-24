@@ -1,0 +1,6 @@
+github.com/godbus/dbus v4.1.0+incompatible h1:WqqLRTsQic3apZUK9qC5sGNfXthmPXzUZ7nQPrNITa4=
+github.com/godbus/dbus v4.1.0+incompatible/go.mod h1:/YcGZj5zSblfDWMMoOzV4fas9FZnQYTkDnsGvmh2Grw=
+go.senan.xyz/filelock v0.0.0-20221024175627-c893f23d6737 h1:EMnFaWdWYfAqpLq3CwO/0ii4bBPQNuyNleAE8EE5e2U=
+go.senan.xyz/filelock v0.0.0-20221024175627-c893f23d6737/go.mod h1:LLqd56tKFqjxlFmgJsD3sJzhHlnBi+iXVzojaRLjcoY=
+golang.org/x/sys v0.1.0 h1:kunALQeHf1/185U1i0GOB/fy1IPRDDpuoOOqRReG57U=
+golang.org/x/sys v0.1.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
