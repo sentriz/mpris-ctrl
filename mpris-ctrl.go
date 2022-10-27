@@ -116,12 +116,15 @@ func getOutputFrom(conn *dbus.Conn, idxFile *filelock.File, command string) (str
 	if len(players) > 1 {
 		parts = append(parts, fmt.Sprintf("%d/%d", idx+1, len(players)))
 	}
-
 	metadata := player.GetMetadata()
-	title := metadata["xesam:title"]
+	title := strings.TrimSpace(metadata["xesam:title"])
+	if title == "" {
+		return "", nil
+	}
 	parts = append(parts, fmt.Sprintf(`‘%s’`, trunc(title, 40, "…")))
+	output := fmt.Sprintf("%v", strings.Join(parts, " "))
 
-	return fmt.Sprintf("%v", strings.Join(parts, " ")), nil
+	return output, nil
 }
 
 func getActivePlayers(conn *dbus.Conn) ([]*mpris.Player, error) {
