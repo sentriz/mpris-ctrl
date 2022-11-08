@@ -82,6 +82,8 @@ func getOutputFrom(conn *dbus.Conn, idxFile *filelock.File, command string) (str
 		idx = setInt(idxFile, positiveModulo(idx+1, len(players)))
 	case "prev-player":
 		idx = setInt(idxFile, positiveModulo(idx-1, len(players)))
+	default:
+		idx = setInt(idxFile, positiveModulo(idx, len(players)))
 	}
 
 	player := players[idx]
