@@ -1,132 +1,41 @@
 package main
 
 import (
-	"encoding/binary"
+	"flag"
 	"fmt"
-	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/godbus/dbus"
-	"go.senan.xyz/filelock"
 	"go.senan.xyz/mpris-ctrl/mpris"
 )
 
 func main() {
+	playerIndex := flag.Int("player-index", 0, "optional index of the player to use")
+	flag.Parse()
+
 	var command string
-	if len(os.Args) > 1 {
-		command = os.Args[1]
+	if args := flag.Args(); len(args) > 0 {
+		command = args[0]
 	}
 
-	output, err := getOutput(command)
+	conn, err := dbus.SessionBus()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(os.Stdout, "error connecting to bus: %v", err)
+		return
+	}
+	defer conn.Close()
+
+	output, err := run(conn, command, *playerIndex)
+	if err != nil {
+		fmt.Fprintf(os.Stdout, "error getting output: %v", err)
+		return
 	}
 	if output == "" {
 		return
 	}
 	fmt.Fprintf(os.Stdout, "%s\n", output)
-}
-
-const (
-	programName              = "mpris-ctrl"
-	statusChangePollInterval = 75 * time.Millisecond
-)
-
-func getOutput(command string) (string, error) {
-	userCacheDir, err := os.UserCacheDir()
-	if err != nil {
-		return "", fmt.Errorf("get user cache dir: %w", err)
-	}
-	cacheDir := filepath.Join(userCacheDir, programName)
-	if err := os.MkdirAll(cacheDir, 0700); err != nil {
-		return "", fmt.Errorf("create cache dir: %w", err)
-	}
-
-	indexPath := filepath.Join(cacheDir, "lock")
-	idxFile, err := filelock.New(indexPath)
-	if err != nil {
-		return "", fmt.Errorf("create lock: %w", err)
-	}
-	idxFile.Lock()
-	defer idxFile.Unlock()
-
-	conn, err := dbus.SessionBus()
-	if err != nil {
-		return "", fmt.Errorf("get session: %w", err)
-	}
-	defer conn.Close()
-
-	output, err := getOutputFrom(conn, idxFile, command)
-	if err != nil {
-		return "", fmt.Errorf("get output: %w", err)
-	}
-	return output, nil
-}
-
-func getOutputFrom(conn *dbus.Conn, idxFile *filelock.File, command string) (string, error) {
-	players, err := getActivePlayers(conn)
-	if err != nil {
-		return "", fmt.Errorf("get players: %w", err)
-	}
-	if len(players) == 0 {
-		return "", nil
-	}
-
-	idx := getInt(idxFile)
-	switch command {
-	case "next-player":
-		idx = setInt(idxFile, positiveModulo(idx+1, len(players)))
-	case "prev-player":
-		idx = setInt(idxFile, positiveModulo(idx-1, len(players)))
-	default:
-		idx = setInt(idxFile, positiveModulo(idx, len(players)))
-	}
-
-	player := players[idx]
-
-	switch command {
-	case "play-pause":
-		prev := player.GetPlaybackStatus()
-		player.PlayPause()
-		waitUntil(func() bool {
-			return player.GetPlaybackStatus() != prev
-		})
-	case "stop":
-		prev := player.GetPlaybackStatus()
-		player.Stop()
-		waitUntil(func() bool {
-			status := player.GetPlaybackStatus()
-			return status != prev || status == mpris.PlaybackStopped
-		})
-		players, err = getActivePlayers(conn)
-		if err != nil {
-			return "", fmt.Errorf("get players: %w", err)
-		}
-		if len(players) == 0 {
-			return "", nil
-		}
-		idx = setInt(idxFile, positiveModulo(idx, len(players)))
-		player = players[idx]
-	}
-
-	var parts []string
-	parts = append(parts, strings.ToLower(string(player.GetPlaybackStatus())))
-	if len(players) > 1 {
-		parts = append(parts, fmt.Sprintf("%d/%d", idx+1, len(players)))
-	}
-	metadata := player.GetMetadata()
-	title := strings.TrimSpace(metadata["xesam:title"])
-	if title == "" {
-		return "", nil
-	}
-	parts = append(parts, fmt.Sprintf(`‘%s’`, trunc(title, 40, "…")))
-	output := fmt.Sprintf("%v", strings.Join(parts, " "))
-
-	return output, nil
 }
 
 func getActivePlayers(conn *dbus.Conn) ([]*mpris.Player, error) {
@@ -145,19 +54,54 @@ func getActivePlayers(conn *dbus.Conn) ([]*mpris.Player, error) {
 	return players, nil
 }
 
-func setInt(w io.WriteSeeker, i int) int {
-	w.Seek(0, 0)
-	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, uint64(i))
-	w.Write(b)
-	return i
-}
+func run(conn *dbus.Conn, command string, playerIndex int) (string, error) {
+	players, err := getActivePlayers(conn)
+	if err != nil {
+		return "", fmt.Errorf("get players: %w", err)
+	}
+	if len(players) == 0 {
+		return "", err
+	}
 
-func getInt(r io.ReadSeeker) int {
-	r.Seek(0, 0)
-	b := make([]byte, 8)
-	r.Read(b)
-	return int(binary.LittleEndian.Uint64(b))
+	playerIndex = pmod(playerIndex, len(players))
+	player := players[playerIndex]
+
+	switch command {
+	case "play-pause":
+		prevStatus := player.GetPlaybackStatus()
+		player.PlayPause()
+		waitUntil(func() bool {
+			return player.GetPlaybackStatus() != prevStatus
+		})
+	case "stop":
+		prevStatus := player.GetPlaybackStatus()
+		player.Stop()
+		waitUntil(func() bool {
+			status := player.GetPlaybackStatus()
+			return status != prevStatus || status == mpris.PlaybackStopped
+		})
+	case "next":
+		player.Next()
+	case "previous":
+		player.Previous()
+	}
+
+	var parts []string
+	parts = append(parts, strings.ToLower(string(player.GetPlaybackStatus())))
+	if len(players) > 1 {
+		parts = append(parts, fmt.Sprintf("%d/%d", playerIndex+1, len(players)))
+	}
+
+	metadata := player.GetMetadata()
+	title := strings.TrimSpace(metadata["xesam:title"])
+	if title == "" {
+		return "", nil
+	}
+
+	parts = append(parts, fmt.Sprintf(`‘%s’`, trunc(title, 40, "…")))
+	output := fmt.Sprintf("%v", strings.Join(parts, " "))
+
+	return output, nil
 }
 
 func trunc(in string, max int, ellip string) string {
@@ -167,9 +111,13 @@ func trunc(in string, max int, ellip string) string {
 	return in[:max] + ellip
 }
 
-func positiveModulo(a, b int) int {
+func pmod(a, b int) int {
 	return ((a % b) + b) % b
 }
+
+const (
+	statusChangePollInterval = 75 * time.Millisecond
+)
 
 func waitUntil(cb func() bool) {
 	for i := 0; i < 20; i++ {
