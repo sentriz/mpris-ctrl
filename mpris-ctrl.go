@@ -62,7 +62,6 @@ func run(conn *dbus.Conn, command string, playerIndex int) (string, error) {
 	if len(players) == 0 {
 		return "", err
 	}
-
 	playerIndex = pmod(playerIndex, len(players))
 	player := players[playerIndex]
 
@@ -85,6 +84,16 @@ func run(conn *dbus.Conn, command string, playerIndex int) (string, error) {
 	case "previous":
 		player.Previous()
 	}
+
+	players, err = getActivePlayers(conn)
+	if err != nil {
+		return "", fmt.Errorf("get players: %w", err)
+	}
+	if len(players) == 0 {
+		return "", err
+	}
+	playerIndex = pmod(playerIndex, len(players))
+	player = players[playerIndex]
 
 	var parts []string
 	parts = append(parts, strings.ToLower(string(player.GetPlaybackStatus())))
