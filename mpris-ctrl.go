@@ -35,6 +35,7 @@ func main() {
 	if output == "" {
 		return
 	}
+
 	fmt.Fprintf(os.Stdout, "%s\n", output)
 }
 
@@ -114,10 +115,11 @@ func run(conn *dbus.Conn, command string, playerIndex int) (string, error) {
 }
 
 func trunc(in string, max int, ellip string) string {
-	if len(in) <= max {
-		return in
+	runes := []rune(in)
+	if len(runes) > max {
+		return string(runes[:max]) + ellip
 	}
-	return in[:max] + ellip
+	return in
 }
 
 func pmod(a, b int) int {
