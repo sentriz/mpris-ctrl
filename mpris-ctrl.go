@@ -108,7 +108,7 @@ func run(conn *dbus.Conn, command string, playerIndex int) (string, error) {
 		return "", nil
 	}
 
-	parts = append(parts, fmt.Sprintf(`‘%s’`, trunc(title, 40, "…")))
+	parts = append(parts, trunc(title, 40, "…"))
 	output := fmt.Sprintf("%v", strings.Join(parts, " "))
 
 	return output, nil
@@ -127,7 +127,7 @@ func pmod(a, b int) int {
 }
 
 const (
-	statusChangePollInterval = 75 * time.Millisecond
+	statusChangePollInterval = 50 * time.Millisecond
 )
 
 func waitUntil(cb func() bool) {
