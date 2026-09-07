@@ -93,33 +93,16 @@ func run(conn *dbus.Conn, command string, playerIndex int) (string, error) {
 	if len(players) == 0 {
 		return "", err
 	}
-	playerIndex = pmod(playerIndex, len(players))
-	player = players[playerIndex]
 
-	var parts []string
-	parts = append(parts, strings.ToLower(string(player.GetPlaybackStatus())))
-	if len(players) > 1 {
-		parts = append(parts, fmt.Sprintf("%d/%d", playerIndex+1, len(players)))
+	lines := make([]string, 0, len(players))
+	for _, player := range players {
+		identity := strings.Join(strings.Fields(player.GetIdentity()), " ")
+		status := strings.ToLower(string(player.GetPlaybackStatus()))
+		title := strings.Join(strings.Fields(player.GetMetadata()["xesam:title"]), " ")
+		lines = append(lines, fmt.Sprintf("%s\t%s\t%s", identity, status, title))
 	}
 
-	metadata := player.GetMetadata()
-	title := strings.TrimSpace(metadata["xesam:title"])
-	if title == "" {
-		return "", nil
-	}
-
-	parts = append(parts, trunc(title, 40, "…"))
-	output := fmt.Sprintf("%v", strings.Join(parts, " "))
-
-	return output, nil
-}
-
-func trunc(in string, max int, ellip string) string {
-	runes := []rune(in)
-	if len(runes) > max {
-		return string(runes[:max]) + ellip
-	}
-	return in
+	return strings.Join(lines, "\n"), nil
 }
 
 func pmod(a, b int) int {

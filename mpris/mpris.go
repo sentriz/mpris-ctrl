@@ -86,7 +86,8 @@ func (i *base) Quit() {
 }
 
 func (i *base) GetIdentity() string {
-	return getProperty(i.obj, baseInterface, "Identity").String()
+	identity, _ := getProperty(i.obj, baseInterface, "Identity").Value().(string)
+	return identity
 }
 
 type player struct {
